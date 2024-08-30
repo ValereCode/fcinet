@@ -1,9 +1,20 @@
 from fastapi import FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 import requests
 from .config import settings
 from .schemas import UserPayload, CheckPay
 
 app = FastAPI()
+
+origins = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.post("/initiate-payment/")
 async def initiate_payment(user_pay: UserPayload):
