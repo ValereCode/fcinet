@@ -63,7 +63,7 @@ async def payment_notification(check_id: CheckPay):
             user_id = check_id.user_id
             user_ref = db.collection('candidates').document(user_id)
             
-             # Mettre à jour les champs dans Firestore
+             # Mettre à jour les champs dans Firestore si ils sont nécessaires
             user_ref.update({
                 "paymentDate": datetime.now().timestamp(),
                 "isPremium": True,
