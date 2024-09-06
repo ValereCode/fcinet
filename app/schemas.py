@@ -12,6 +12,7 @@ class UserPayload(BaseModel):
         
 class CheckPay(BaseModel):
     trans_id: str
+    user_id: str
     
     class config:
         from_attributes = True

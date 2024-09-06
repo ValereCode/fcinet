@@ -1,8 +1,10 @@
+import datetime
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 import requests
 from .config import settings
 from .schemas import UserPayload, CheckPay
+from .firebase_config import db
 
 app = FastAPI()
 
@@ -56,6 +58,19 @@ async def payment_notification(check_id: CheckPay):
     try:
         response = requests.post(f"{settings.cinetpay_base_url}/check", json=check)
         response_data = response.json()
+        
+        if response_data.get("data", {}).get("status") == "ACCEPTED":
+            user_id = check_id.user_id
+            user_ref = db.collection('candidates').document(user_id)
+            
+             # Mettre à jour les champs dans Firestore
+            user_ref.update({
+                "paymentDate": datetime.now().timestamp(),
+                "isPremium": True,
+                "premiumEnd": (datetime.now() + datetime.timedelta(days=30)).timestamp(),
+                "premiumType": 'month'
+            })
+        
         return response_data
     
     except requests.RequestException as e:
