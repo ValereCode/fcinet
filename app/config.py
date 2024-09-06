@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     cinetpay_base_url: str
     callback_url: str
     return_url: str
+    google_application_credentials:str
 
     model_config = SettingsConfigDict(env_file='.env')
 
