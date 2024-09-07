@@ -55,6 +55,7 @@ async def payment_notification(check_id: CheckPay):
         "transaction_id": check_id.trans_id
     }
     print(check)
+    print(check_id)
     try:
         response = requests.post(f"{settings.cinetpay_base_url}/check", json=check)
         response_data = response.json()
