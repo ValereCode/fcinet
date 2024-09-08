@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 import requests
@@ -41,7 +41,8 @@ async def initiate_payment(user_pay: UserPayload):
         #     return {"payment_url": response_data.get("data", {}).get("payment_url")}
         # else:
         #     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response_data.get("message", "Payment initiation failed"))
-        return {"payment_url": response_data.get("data", {}).get("payment_url")}
+        # .get("data", {}).get("payment_url")
+        return {"response": response_data}
     
     except requests.RequestException as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -66,9 +67,9 @@ async def payment_notification(check_id: CheckPay):
             
              # Mettre à jour les champs dans Firestore si ils sont nécessaires
             user_ref.update({
-                "paymentDate": datetime.now().timestamp(),
+                "paymentDate": datetime.utcnow().timestamp(),
                 "isPremium": True,
-                "premiumEnd": (datetime.now() + datetime.timedelta(days=30)).timestamp(),
+                "premiumEnd": (datetime.utcnow() + timedelta(days=30)).timestamp(),
                 "premiumType": 'month'
             })
         
