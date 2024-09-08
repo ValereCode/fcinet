@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 import requests
 from .config import settings
-from .schemas import UserPayload, CheckPay
+from .schemas import UserPayload, CheckPay, PaymentNotification
 from .firebase_config import db
 
 app = FastAPI()
@@ -31,24 +31,18 @@ async def initiate_payment(user_pay: UserPayload):
         "notify_url": settings.callback_url,
         "customer_name": user_pay.customer_name,
         "customer_email": user_pay.customer_email,
+        'metadata': user_pay.user_id
     }
     
     try:
         response = requests.post(f"{settings.cinetpay_base_url}", json=payload)
-        response_data = response.json()
-        print(response_data)
-        # if response.status_code == status.HTTP_200_OK and response_data.get("code") == "00":
-        #     return {"payment_url": response_data.get("data", {}).get("payment_url")}
-        # else:
-        #     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=response_data.get("message", "Payment initiation failed"))
-        # .get("data", {}).get("payment_url")
-        return {"response": response_data}
+        return response.json()
     
     except requests.RequestException as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
-@app.post("/payment-notification/")
-async def payment_notification(check_id: CheckPay):
+@app.post("/verify-payment/")
+async def verify_payment(check_id: CheckPay):
     # Vous pouvez ajouter ici la logique pour traiter les notifications de paiement CinetPay
     check = {
         "apikey": settings.cinetpay_api_key,
@@ -77,3 +71,29 @@ async def payment_notification(check_id: CheckPay):
     
     except requests.RequestException as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@app.post("/payment-notification/")
+async def notify_payment(notification: PaymentNotification):
+    try:
+        # Vérifier si le paiement est accepté
+        if notification.status == "ACCEPTED":
+            
+            # Récupérer l'ID utilisateur depuis metadata
+            user_id = notification.metadata
+            
+            # Mettre à jour l'utilisateur dans Firestore pour devenir Premium
+            user_ref = db.collection('candidates').document(user_id)
+            
+             # Mettre à jour les champs dans Firestore si ils sont nécessaires
+            user_ref.update({
+                "paymentDate": datetime.utcnow().timestamp(),
+                "isPremium": True,
+                "premiumEnd": (datetime.utcnow() + timedelta(days=30)).timestamp(),
+                "premiumType": 'month'
+            })
+            return {"status": "user_updated_to_premium"}
+        else:
+            return {"status": "payment_not_accepted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) 
