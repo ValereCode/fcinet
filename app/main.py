@@ -31,7 +31,7 @@ async def initiate_payment(user_pay: UserPayload):
         "notify_url": settings.callback_url,
         "customer_name": user_pay.customer_name,
         "customer_email": user_pay.customer_email,
-        'metadata': user_pay.user_id
+        'metadata': user_pay.metadata
     }
     
     try:
