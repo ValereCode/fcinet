@@ -98,8 +98,16 @@ async def notify_payment(request: Request,
 
         # Vérifier la signature HMAC pour valider l'intégrité des données
         secret_key = settings.cinetpay_secret_key  # Votre clé secrète pour générer le HMAC
-        if not verify_hmac_signature(payload, x_token, secret_key):
-            print('Votre HMAC est invalid')
+        # Générer le HMAC token à partir des données de la requête
+        generated_token = generate_hmac_token(payload, secret_key)
+
+        # Comparer le token généré avec celui reçu dans l'en-tête
+        if not hmac.compare_digest(generated_token, x_token):
+            raise HTTPException(status_code=400, detail="Invalid HMAC token")
+        
+        
+        # if not verify_hmac_signature(payload, x_token, secret_key):
+        #     print('Votre HMAC est invalid')
             # raise HTTPException(status_code=400, detail="Invalid HMAC signature")
         
         
@@ -113,10 +121,6 @@ async def notify_payment(request: Request,
         
         # Appeler l'API de vérification de CinetPay pour confirmer le statut du paiement
         verification_url = "https://api-checkout.cinetpay.com/v2/payment/check"
-        # headers = {
-        #     'Content-Type': 'application/json',
-        #     'apikey': 'your_cinetpay_api_key'
-        # }
         data = {
             "apikey": settings.cinetpay_api_key,
             "transaction_id": transaction_id,
@@ -171,7 +175,35 @@ async def notify_payment(request: Request,
         
         
 # Utilisez cette fonction pour vérifier le HMAC envoyé par CinetPay
-def verify_hmac_signature(data, received_signature, secret_key):
-    sorted_data = "&".join(f"{key}={value}" for key, value in sorted(data.items()))
-    calculated_signature = hmac.new(secret_key.encode(), sorted_data.encode(), hashlib.sha256).hexdigest()
-    return hmac.compare_digest(calculated_signature, received_signature)
+# def verify_hmac_signature(data, received_signature, secret_key):
+#     sorted_data = "&".join(f"{key}={value}" for key, value in sorted(data.items()))
+#     calculated_signature = hmac.new(secret_key.encode(), sorted_data.encode(), hashlib.sha256).hexdigest()
+#     return hmac.compare_digest(calculated_signature, received_signature)
+
+
+# Fonction pour générer le token HMAC comme spécifié par CinetPay
+def generate_hmac_token(payload, secret_key):
+    # Concaténer les données dans l'ordre spécifié
+    data = (
+        payload.get("cpm_site_id", "") +
+        payload.get("cpm_trans_id", "") +
+        payload.get("cpm_trans_date", "") +
+        payload.get("cpm_amount", "") +
+        payload.get("cpm_currency", "") +
+        payload.get("signature", "") +
+        payload.get("payment_method", "") +
+        payload.get("cel_phone_num", "") +
+        payload.get("cpm_phone_prefixe", "") +
+        payload.get("cpm_language", "") +
+        payload.get("cpm_version", "") +
+        payload.get("cpm_payment_config", "") +
+        payload.get("cpm_page_action", "") +
+        payload.get("cpm_custom", "") +
+        payload.get("cpm_designation", "") +
+        payload.get("cpm_error_message", "")
+    )
+
+    # Générer le HMAC avec SHA-256
+    token = hmac.new(secret_key.encode(), data.encode(), hashlib.sha256).hexdigest()
+
+    return token
