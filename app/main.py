@@ -75,27 +75,30 @@ async def verify_payment(check_id: CheckPay):
 
 @app.post("/payment-notification/")
 async def notify_payment(notification: Request):
-    payload = notification.json()
+    payload = await notification.json()
     print(payload)
-    try:
-        # Vérifier si le paiement est accepté
-        if notification.status == "ACCEPTED":
-            
-            # Récupérer l'ID utilisateur depuis metadata
-            user_id = notification.metadata
-            
-            # Mettre à jour l'utilisateur dans Firestore pour devenir Premium
-            user_ref = db.collection('candidates').document(user_id)
-            
-             # Mettre à jour les champs dans Firestore si ils sont nécessaires
-            user_ref.update({
-                "paymentDate": datetime.utcnow().timestamp(),
-                "isPremium": True,
-                "premiumEnd": (datetime.utcnow() + timedelta(days=30)).timestamp(),
-                "premiumType": 'month'
-            })
-            return {"status": "user_updated_to_premium"}
-        else:
-            return {"status": "payment_not_accepted"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) 
+    if payload : 
+        
+        try:
+            # Vérifier si le paiement est accepté
+            if payload.get('status') == "ACCEPTED":
+                
+                # Récupérer l'ID utilisateur depuis metadata
+                # user_id = notification.metadata
+                user_id = payload.get('metadata')
+                
+                # Mettre à jour l'utilisateur dans Firestore pour devenir Premium
+                user_ref = db.collection('candidates').document(user_id)
+                
+                # Mettre à jour les champs dans Firestore si ils sont nécessaires
+                user_ref.update({
+                    "paymentDate": datetime.utcnow().timestamp(),
+                    "isPremium": True,
+                    "premiumEnd": (datetime.utcnow() + timedelta(days=30)).timestamp(),
+                    "premiumType": 'month'
+                })
+                return {"status": "user_updated_to_premium"}
+            else:
+                return {"status": "payment_not_accepted"}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e)) 
