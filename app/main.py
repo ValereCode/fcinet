@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException, Header, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 import requests
 from .config import settings
-from .schemas import UserPayload, CheckPay, PaymentNotification
+from .schemas import UserPayload, CheckPay
 from .firebase_config import db
 
 app = FastAPI()
