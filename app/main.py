@@ -97,8 +97,10 @@ async def notify_payment(notification: Request):
                     "premiumEnd": (datetime.utcnow() + timedelta(days=30)).timestamp(),
                     "premiumType": 'month'
                 })
+                print('Everithings works')
                 return {"status": "user_updated_to_premium"}
             else:
+                print('Work but not at all , courage')
                 return {"status": "payment_not_accepted"}
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e)) 
