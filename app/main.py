@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
-from fastapi import FastAPI, HTTPException, status, Request
+import hmac
+import hashlib
+from fastapi import FastAPI, HTTPException, Header, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 import requests
 from .config import settings
@@ -20,6 +22,7 @@ app.add_middleware(
 
 @app.post("/initiate-payment/")
 async def initiate_payment(user_pay: UserPayload):
+    print('Hi World!')
     payload = {
         "apikey": settings.cinetpay_api_key,
         "site_id": settings.cinetpay_site_id,
@@ -74,33 +77,101 @@ async def verify_payment(check_id: CheckPay):
 
 
 @app.post("/payment-notification/")
-async def notify_payment(notification: Request):
-    payload = await notification.json()
-    print(payload)
-    if payload : 
+async def notify_payment(request: Request,
+    x_token: str = Header(None)  # Le token HMAC est passé dans l'en-tête 'x-token'
+    ):
         
-        try:
-            # Vérifier si le paiement est accepté
-            if payload.get('status') == "ACCEPTED":
-                
-                # Récupérer l'ID utilisateur depuis metadata
-                # user_id = notification.metadata
-                user_id = payload.get('metadata')
-                
-                # Mettre à jour l'utilisateur dans Firestore pour devenir Premium
-                user_ref = db.collection('candidates').document(user_id)
-                
-                # Mettre à jour les champs dans Firestore si ils sont nécessaires
-                user_ref.update({
-                    "paymentDate": datetime.utcnow().timestamp(),
-                    "isPremium": True,
-                    "premiumEnd": (datetime.utcnow() + timedelta(days=30)).timestamp(),
-                    "premiumType": 'month'
-                })
-                print('Everithings works')
-                return {"status": "user_updated_to_premium"}
-            else:
-                print('Work but not at all , courage')
-                return {"status": "payment_not_accepted"}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e)) 
+    try:
+        # Extraire le corps de la requête
+        payload = await request.form()  # Si les données sont envoyées en tant que formulaire
+
+        # Afficher les données reçues pour déboguer
+        print(payload)
+        
+        # Récupérer les informations importantes
+        transaction_id = payload.get("cpm_trans_id")
+        site_id = payload.get("cpm_site_id")
+        custom_data = payload.get("cpm_custom")  # Correspond à la metadata envoyée à l'initialisation
+        
+        if not transaction_id or not site_id:
+            raise HTTPException(status_code=400, detail="Transaction ID or Site ID missing")
+
+        # Vérifier la signature HMAC pour valider l'intégrité des données
+        secret_key = settings.cinetpay_secret_key  # Votre clé secrète pour générer le HMAC
+        if not verify_hmac_signature(payload, x_token, secret_key):
+            print('Votre HMAC est invalid')
+            # raise HTTPException(status_code=400, detail="Invalid HMAC signature")
+        
+        
+        # Vérifier si la transaction est déjà marquée comme succès dans votre base de données
+        user_ref = db.collection('candidates').document(custom_data)
+        # user_doc = user_ref.get()
+
+        # if user_doc.exists and user_doc.get("paymentStatus") == "success":
+        #     return {"status": "Payment already processed"}
+        
+        
+        # Appeler l'API de vérification de CinetPay pour confirmer le statut du paiement
+        verification_url = "https://api-checkout.cinetpay.com/v2/payment/check"
+        # headers = {
+        #     'Content-Type': 'application/json',
+        #     'apikey': 'your_cinetpay_api_key'
+        # }
+        data = {
+            "apikey": settings.cinetpay_api_key,
+            "transaction_id": transaction_id,
+            "site_id": site_id
+        }
+
+        verification_response = requests.post(verification_url, json=data)
+        verification_data = verification_response.json()
+        
+        # Vérifier le statut de la transaction retournée par CinetPay
+        if verification_data.get("code") == "00" and verification_data.get("data").get("status") == "ACCEPTED":
+            # Mettre à jour le statut de l'utilisateur dans Firestore
+            user_ref.update({
+                "paymentDate": datetime.utcnow().timestamp(),
+                "isPremium": True,
+                "premiumEnd": (datetime.utcnow() + timedelta(days=30)).timestamp(),
+                "premiumType": 'month',
+                # "paymentStatus": "success"
+            })
+            return {"status": "user_updated_to_premium"}
+        else:
+            return {"status": "payment_not_accepted"}
+        
+        
+        # Vérifier si le paiement est accepté
+        """
+        if payload.get('status') == "ACCEPTED":
+            
+            # Récupérer l'ID utilisateur depuis metadata
+            # user_id = notification.metadata
+            user_id = payload.get('metadata')
+            
+            # Mettre à jour l'utilisateur dans Firestore pour devenir Premium
+            user_ref = db.collection('candidates').document(user_id)
+            
+            # Mettre à jour les champs dans Firestore si ils sont nécessaires
+            user_ref.update({
+                "paymentDate": datetime.utcnow().timestamp(),
+                "isPremium": True,
+                "premiumEnd": (datetime.utcnow() + timedelta(days=30)).timestamp(),
+                "premiumType": 'month'
+            })
+            print('Everithings works')
+            return {"status": "user_updated_to_premium"}
+        else:
+            print('Work but not at all , courage')
+            return {"status": "payment_not_accepted"}
+        """
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) 
+        
+        
+# Utilisez cette fonction pour vérifier le HMAC envoyé par CinetPay
+def verify_hmac_signature(data, received_signature, secret_key):
+    sorted_data = "&".join(f"{key}={value}" for key, value in sorted(data.items()))
+    calculated_signature = hmac.new(secret_key.encode(), sorted_data.encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(calculated_signature, received_signature)
