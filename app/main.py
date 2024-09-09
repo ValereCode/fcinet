@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 import requests
 from .config import settings
@@ -74,7 +74,9 @@ async def verify_payment(check_id: CheckPay):
 
 
 @app.post("/payment-notification/")
-async def notify_payment(notification: PaymentNotification):
+async def notify_payment(notification: Request):
+    payload = notification.json()
+    print(payload)
     try:
         # Vérifier si le paiement est accepté
         if notification.status == "ACCEPTED":
