@@ -10,3 +10,10 @@ class UserPayload(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class VerifyTransaction(BaseModel):
+    trans_id: str
+    
+    class Config:
+        from_attributes = True
