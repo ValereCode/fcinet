@@ -5,7 +5,7 @@ from fastapi import FastAPI, HTTPException, Header, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 import requests
 from .config import settings
-from .schemas import UserPayload
+from .schemas import UserPayload, VerifyTransaction
 from .firebase_config import db
 
 app = FastAPI()
@@ -70,7 +70,13 @@ async def notify_payment(request: Request, x_token: str = Header(None)):
             raise HTTPException(status_code=400, detail="Invalid HMAC token")
         
         # Vérifier si la transaction est déjà marquée comme succès dans votre base de données
-        user_ref = db.collection('candidates').document(custom_data)
+        user_ref = db.collection('users').document(custom_data)
+        
+        match user_ref:
+            case "Pupil":
+                userProfileData = db.collection('pupils').document(custom_data)
+            case "Candidate":
+                userProfileData = db.collection('candidates').document(custom_data)
         
         # Appeler l'API de vérification de CinetPay pour confirmer le statut du paiement
         verification_url = "https://api-checkout.cinetpay.com/v2/payment/check"
@@ -86,7 +92,7 @@ async def notify_payment(request: Request, x_token: str = Header(None)):
         # Vérifier le statut de la transaction retournée par CinetPay
         if verification_data.get("code") == "00" and verification_data.get("data").get("status") == "ACCEPTED":
             # Mettre à jour le statut de l'utilisateur dans Firestore
-            user_ref.update({
+            userProfileData.update({
                 "paymentDate": datetime.utcnow().timestamp(),
                 "isPremium": True,
                 "premiumEnd": (datetime.utcnow() + timedelta(days=30)).timestamp(),
@@ -99,6 +105,24 @@ async def notify_payment(request: Request, x_token: str = Header(None)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) 
 
+@app.post("/verify-payment/")
+async def verify_payment(trans_id: VerifyTransaction):
+    payload ={
+        "apikey": settings.cinetpay_api_key,
+        "site_id": settings.cinetpay_site_id,
+        "transaction_id": trans_id.trans_id,
+    }
+    verification_url = "https://api-checkout.cinetpay.com/v2/payment/check"
+    
+    try:
+        verification_response = requests.post(verification_url, json=payload)
+        return verification_response.json()
+    
+        # response = requests.post(f"{settings.cinetpay_base_url}", json=payload)
+        # return response.json()
+    
+    except requests.RequestException as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 # Fonction pour générer le token HMAC comme spécifié par CinetPay
 def generate_hmac_token(payload, secret_key):
