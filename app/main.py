@@ -93,9 +93,9 @@ async def notify_payment(request: Request, x_token: str = Header(None)):
         if verification_data.get("code") == "00" and verification_data.get("data").get("status") == "ACCEPTED":
             # Mettre à jour le statut de l'utilisateur dans Firestore
             userProfileData.update({
-                "paymentDate": datetime.utcnow().timestamp(),
+                "paymentDate": int(datetime.utcnow().timestamp() * 1000),
                 "isPremium": True,
-                "premiumEnd": (datetime.utcnow() + timedelta(days=30)).timestamp(),
+                "premiumEnd": int((datetime.utcnow() + timedelta(days=30)).timestamp() * 1000),
                 "premiumType": 'month',
             })
             return {"status": "user_updated_to_premium"}
