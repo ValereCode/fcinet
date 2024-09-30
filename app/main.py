@@ -77,6 +77,12 @@ async def notify_payment(request: Request, x_token: str = Header(None)):
                 userProfileData = db.collection('pupils').document(custom_data)
             case "Candidate":
                 userProfileData = db.collection('candidates').document(custom_data)
+            case "Student":
+                userProfileData = db.collection('students').document(custom_data)
+            case "Autodidact":
+                userProfileData = db.collection('autos').document(custom_data)
+            case "Professionel":
+                userProfileData = db.collection('pro').document(custom_data)
         
         # Appeler l'API de vérification de CinetPay pour confirmer le statut du paiement
         verification_url = "https://api-checkout.cinetpay.com/v2/payment/check"
