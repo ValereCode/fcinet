@@ -52,6 +52,9 @@ async def notify_payment(request: Request, x_token: str = Header(None)):
         # Extraire le corps de la requête
         payload = await request.form()  # Si les données sont envoyées en tant que formulaire
         
+        print("Payload reçu : ", payload)
+
+
         # Récupérer les informations importantes
         transaction_id = payload.get("cpm_trans_id")
         site_id = payload.get("cpm_site_id")
@@ -72,11 +75,19 @@ async def notify_payment(request: Request, x_token: str = Header(None)):
         # Vérifier si la transaction est déjà marquée comme succès dans votre base de données
         user_ref = db.collection('users').document(custom_data)
         
+        print("User Ref: ", user_ref)
+        
         match user_ref:
             case "Pupil":
                 userProfileData = db.collection('pupils').document(custom_data)
             case "Candidate":
                 userProfileData = db.collection('candidates').document(custom_data)
+            case "Student":
+                userProfileData = db.collection('students').document(custom_data)
+            case "Autodidact":
+                userProfileData = db.collection('autos').document(custom_data)
+            case "Professionel":
+                userProfileData = db.collection('pro').document(custom_data)
         
         # Appeler l'API de vérification de CinetPay pour confirmer le statut du paiement
         verification_url = "https://api-checkout.cinetpay.com/v2/payment/check"
@@ -103,6 +114,7 @@ async def notify_payment(request: Request, x_token: str = Header(None)):
             return {"status": "payment_not_accepted"}
     
     except Exception as e:
+        print(f"Erreur lors de la notification de paiement: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 
 
 @app.post("/verify-payment/")
